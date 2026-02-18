@@ -82,8 +82,8 @@
   const category = banner.banner_type || ''
   const game = banner.game_id
 
-  const gameLabel = game === 'hsr' ? 'HSR' : game === 'zzz' ? 'ZZZ' : 'Genshin'
-  const accent = banner.color || (game === 'genshin' ? '#22d3ee' : game === 'hsr' ? '#a78bfa' : '#fb923c')
+  const gameLabel = game === 'hsr' ? 'HSR' : game === 'zzz' ? 'ZZZ' : 'GENSHIN'
+  const accent = banner.color || (game === 'genshin' ? '#60A5FA' : game === 'hsr' ? '#A855F7' : '#FB923C')
 
   const calculateCountdown = (endDate: string): Countdown => {
     const target = new Date(endDate).getTime()
@@ -164,7 +164,7 @@
         <img
           src={currentImage}
           alt={currentTitle}
-          class="absolute inset-0 h-full w-full object-cover object-top"
+          class={`absolute inset-0 h-full w-full object-cover object-top transition-opacity duration-1000 ${countdown.finished ? 'opacity-40 grayscale-[0.5]' : 'opacity-100'}`}
           in:fade={{ duration: 600 }}
           loading="lazy"
           on:error={() => (imageFailed = true)}
@@ -204,47 +204,55 @@
       {/if}
     </div>
 
-    <div class="mt-4">
+    <div class="mt-4 text-center">
       <h3 class="text-2xl font-black text-white uppercase italic tracking-tighter leading-none group-hover:text-transparent group-hover:bg-clip-text group-hover:bg-gradient-to-r group-hover:from-white group-hover:to-white/60 transition-all duration-300 min-h-[0.8em]">
         {currentTitle}
       </h3>
       {#if subtitle}
-        <p class="mt-1 text-[11px] font-bold text-white/50 uppercase tracking-widest line-clamp-1">{subtitle}</p>
+        <p class="mt-1.5 text-[11px] font-bold text-white/50 uppercase tracking-widest line-clamp-1">{subtitle}</p>
       {/if}
     </div>
 
     <div class="mt-6 space-y-3">
-      <div class="flex items-center gap-1.5 overflow-hidden">
-        {#each [
-          { value: countdown.days, label: $t('card.days') },
-          { value: countdown.hours, label: $t('card.hours') },
-          { value: countdown.minutes, label: $t('card.minutes') },
-          { value: countdown.seconds, label: $t('card.seconds') }
-        ] as part, i}
-          <div class="flex-1 flex flex-col items-center bg-white/5 rounded-lg py-2 border border-white/5 backdrop-blur-md relative overflow-hidden group/item">
-            <span class="text-xl font-black text-white tabular-nums z-10">
-               {countdown.finished ? '00' : formatTime(part.value)}
-            </span>
-            <span class="text-[9px] font-bold text-white/30 uppercase z-10">{part.label}</span>
-            <div 
-              class="absolute bottom-0 left-0 h-0.5 w-full scale-x-0 group-hover/item:scale-x-100 transition-transform duration-300"
-              style={`background-color: ${accent};`}
-            ></div>
-          </div>
-          {#if i < 3}
-            <span class="text-white/20 font-black animate-pulse">:</span>
-          {/if}
-        {/each}
-      </div>
+      {#if countdown.finished}
+        <div class="w-full bg-red-500/10 border border-red-500/20 rounded-xl py-4 text-center backdrop-blur-md">
+          <span class="text-xl font-black text-red-500 italic tracking-tighter uppercase animate-pulse">
+            {$t('card.finished')}
+          </span>
+        </div>
+      {:else}
+        <div class="flex items-center gap-1.5 overflow-hidden">
+          {#each [
+            { value: countdown.days, label: $t('card.days') },
+            { value: countdown.hours, label: $t('card.hours') },
+            { value: countdown.minutes, label: $t('card.minutes') },
+            { value: countdown.seconds, label: $t('card.seconds') }
+          ] as part, i}
+            <div class="flex-1 flex flex-col items-center bg-white/5 rounded-lg py-2 border border-white/5 backdrop-blur-md relative overflow-hidden group/item">
+              <span class="text-xl font-black text-white tabular-nums z-10">
+                {formatTime(part.value)}
+              </span>
+              <span class="text-[9px] font-bold text-white/30 uppercase z-10">{part.label}</span>
+              <div 
+                class="absolute bottom-0 left-0 h-0.5 w-full scale-x-0 group-hover/item:scale-x-100 transition-transform duration-300"
+                style={`background-color: ${accent};`}
+              ></div>
+            </div>
+            {#if i < 3}
+              <span class="text-white/20 font-black animate-pulse">:</span>
+            {/if}
+          {/each}
+        </div>
+      {/if}
 
-      <div class="flex items-center justify-between pt-2">
-        <div class="flex items-center gap-1.5">
-          <div class={`h-1.5 w-1.5 rounded-full ${countdown.finished ? 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.6)]' : 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)]'} animate-pulse`}></div>
-          <span class="text-[10px] font-black uppercase tracking-widest text-white/60">
+      <div class="flex flex-col items-center gap-1.5 pt-2">
+        <div class="flex items-center gap-2">
+          <div class={`h-1.5 w-1.5 rounded-full ${countdown.finished ? 'bg-red-600 shadow-[0_0_8px_rgba(220,38,38,0.6)]' : 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)] shadow-emerald-500/50'} ${!countdown.finished && 'animate-pulse'}`}></div>
+          <span class="text-[10px] font-black uppercase tracking-[0.2em] text-white/50">
             {countdown.finished ? $t('card.finished') : $t('card.open')}
           </span>
         </div>
-        <div class="text-[9px] font-medium text-white/20 uppercase tracking-tighter">
+        <div class="text-[8px] font-black text-white/20 uppercase tracking-[0.3em]">
           {$t('card.sync')}
         </div>
       </div>
