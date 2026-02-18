@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onDestroy, onMount } from 'svelte'
   import { fade } from 'svelte/transition'
+  import { t } from './i18n/translations'
 
   type FeaturedCharacter = {
     name: string
@@ -145,7 +146,7 @@
       {#each featured as char, i}
         <button
           type="button"
-          aria-label={`Ver a ${char.name}`}
+          aria-label={`${$t('card.view')} ${char.name}`}
           class="h-1.5 w-1.5 rounded-full transition-all duration-300"
           style={`background-color: ${activeIndex === i ? accent : 'rgba(255,255,255,0.2)'}; transform: scale(${activeIndex === i ? 1.5 : 1});`}
           on:click|stopPropagation={() => (activeIndex = i)}
@@ -215,10 +216,10 @@
     <div class="mt-6 space-y-3">
       <div class="flex items-center gap-1.5 overflow-hidden">
         {#each [
-          { value: countdown.days, label: 'D' },
-          { value: countdown.hours, label: 'H' },
-          { value: countdown.minutes, label: 'M' },
-          { value: countdown.seconds, label: 'S' }
+          { value: countdown.days, label: $t('card.days') },
+          { value: countdown.hours, label: $t('card.hours') },
+          { value: countdown.minutes, label: $t('card.minutes') },
+          { value: countdown.seconds, label: $t('card.seconds') }
         ] as part, i}
           <div class="flex-1 flex flex-col items-center bg-white/5 rounded-lg py-2 border border-white/5 backdrop-blur-md relative overflow-hidden group/item">
             <span class="text-xl font-black text-white tabular-nums z-10">
@@ -240,11 +241,11 @@
         <div class="flex items-center gap-1.5">
           <div class={`h-1.5 w-1.5 rounded-full ${countdown.finished ? 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.6)]' : 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)]'} animate-pulse`}></div>
           <span class="text-[10px] font-black uppercase tracking-widest text-white/60">
-            {countdown.finished ? 'Evento Finalizado' : 'Portal Abierto'}
+            {countdown.finished ? $t('card.finished') : $t('card.open')}
           </span>
         </div>
         <div class="text-[9px] font-medium text-white/20 uppercase tracking-tighter">
-          SYNC_UTC
+          {$t('card.sync')}
         </div>
       </div>
     </div>
