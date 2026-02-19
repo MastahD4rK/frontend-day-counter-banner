@@ -1,5 +1,5 @@
 // Automated or semi-automated mapping for character images
-// This helps to dynamically match character names with their multi-folder paths
+// Maps character names to local assets. The backend sends only names, not image URLs.
 
 const IMAGES_INDEX: Record<string, string> = {
   // Genshin Impact
@@ -11,28 +11,21 @@ const IMAGES_INDEX: Record<string, string> = {
   'yixuan': '/images/zzz/season2/yixuan.webp?v=update-01',
 
   // Honkai Star Rail
-  'blackswan': '/images/hsr/penacony/blackswan.webp?v=initial',
+  'blackswan': '/images/hsr/penacony/blackswan.webp?v=update-02',
   'evernight': '/images/hsr/amphoreus/evernight.webp?v=initial',
   'hysilens': '/images/hsr/amphoreus/hysilens.webp?v=update-01',
   'yaoguang': '/images/hsr/planarcadia/yaoguang.webp?v=initial',
 };
 
 /**
- * Resuelve la imagen de un personaje basándose en su nombre
- * @param characterName Nombre del personaje (ej. "Neuvillette")
- * @param fallback Imagen por defecto de la API
- * @returns La ruta de la imagen local o el fallback
+ * Resuelve la imagen de un personaje basándose en su nombre.
+ * @param characterName Nombre del personaje (ej. "Neuvillette", "Black Swan", "Yao Guang")
+ * @returns La ruta de la imagen local o cadena vacía si no se encuentra
  */
-export function resolveCharacterImage(characterName: string, fallback: string = ''): string {
-  if (!characterName) return fallback;
+export function resolveCharacterImage(characterName: string): string {
+  if (!characterName) return '';
   
   const normalized = characterName.toLowerCase().trim().replace(/\s+/g, '');
   
-  // Si encontramos el personaje en nuestro índice de carpetas regionales (Genshin/HSR)
-  if (IMAGES_INDEX[normalized]) {
-    return IMAGES_INDEX[normalized];
-  }
-
-  // De lo contrario, usamos la imagen que ya venía de la API
-  return fallback;
+  return IMAGES_INDEX[normalized] ?? '';
 }
