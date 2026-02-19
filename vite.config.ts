@@ -19,7 +19,7 @@ export default defineConfig({
       devOptions: {
         enabled: true,
       },
-      includeAssets: ['favicon.svg'],
+      includeAssets: ['favicon.svg', 'apple-touch-icon.png'],
       workbox: {
         runtimeCaching: [
           {
@@ -39,12 +39,31 @@ export default defineConfig({
         ],
       },
       manifest: {
-        name: 'Frontend Day Counter Banner',
-        short_name: 'DayCounter',
+        name: 'Banner Counter',
+        short_name: 'BannerCounter',
+        description: 'Cuenta regresiva para banners de Genshin Impact, Honkai: Star Rail y Zenless Zone Zero',
         start_url: '/',
         display: 'standalone',
-        background_color: '#ffffff',
-        theme_color: '#ffffff',
+        background_color: '#0a0a0f',
+        theme_color: '#0a0a0f',
+        icons: [
+          {
+            src: '/pwa-192x192.png',
+            sizes: '192x192',
+            type: 'image/png',
+          },
+          {
+            src: '/pwa-512x512.png',
+            sizes: '512x512',
+            type: 'image/png',
+          },
+          {
+            src: '/pwa-512x512.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'maskable',
+          },
+        ],
       },
     }),
   ],
