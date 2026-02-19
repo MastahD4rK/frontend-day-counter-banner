@@ -32,6 +32,7 @@ const translations: Record<Locale, Record<string, string>> = {
     'card.seconds': 'S',
     'status.maintenance': 'Sin banners activos — posible mantenimiento',
     'status.error': 'Error al obtener datos de este juego',
+    'footer.madeBy': 'Hecho por',
   },
   en: {
     'nav.all': 'All',
@@ -56,6 +57,7 @@ const translations: Record<Locale, Record<string, string>> = {
     'card.seconds': 'S',
     'status.maintenance': 'No active banners — possible maintenance',
     'status.error': 'Error fetching data for this game',
+    'footer.madeBy': 'Made by',
   }
 };
 
