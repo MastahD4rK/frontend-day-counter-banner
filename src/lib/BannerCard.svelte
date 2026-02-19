@@ -2,6 +2,7 @@
   import { onDestroy, onMount } from 'svelte'
   import { fade } from 'svelte/transition'
   import { t } from './i18n/translations'
+  import { resolveCharacterImage } from './utils/images'
 
   type FeaturedCharacter = {
     name: string
@@ -47,15 +48,20 @@
   let isHovered = false
 
   const featured = banner.featured_characters && banner.featured_characters.length > 0
-    ? banner.featured_characters
-    : [{ name: banner.character, image: banner.image || '' }]
+    ? banner.featured_characters.map(char => ({
+        ...char,
+        image: resolveCharacterImage(char.name, char.image)
+      }))
+    : [{ name: banner.character, image: resolveCharacterImage(banner.character, banner.image || '') }]
 
   const handleMouseMove = (e: MouseEvent) => {
     isHovered = true
-    const { left, top, width, height } = (e.currentTarget as HTMLElement).getBoundingClientRect()
-    const x = (e.clientX - left) / width - 0.5
-    const y = (e.clientY - top) / height - 0.5
-    mousePosition = { x, y }
+    requestAnimationFrame(() => {
+      const { left, top, width, height } = (e.currentTarget as HTMLElement).getBoundingClientRect()
+      const x = (e.clientX - left) / width - 0.5
+      const y = (e.clientY - top) / height - 0.5
+      mousePosition = { x, y }
+    })
   }
 
   const resetMouse = () => {
@@ -129,26 +135,31 @@
 </script>
 
 <article
-  class="group relative w-full aspect-[2/3] overflow-hidden rounded-3xl border transition-all duration-700 hover:shadow-[0_20px_50px_rgba(0,0,0,0.8)] cursor-pointer bg-slate-950 isolate"
-  style={`border-color: ${accent}44; box-shadow: 0 0 40px ${accent}15; transform: perspective(1000px) rotateX(${mousePosition.y * -5}deg) rotateY(${mousePosition.x * 5}deg);`}
+  class="group relative w-full aspect-[21/9] sm:aspect-[2.5/1] overflow-hidden rounded-[2rem] border transition-transform duration-500 hover:shadow-[0_40px_80px_rgba(0,0,0,0.9)] cursor-pointer bg-slate-950 isolate will-change-transform"
+  style={`
+    border-color: ${accent}33; 
+    box-shadow: 0 0 60px ${accent}10; 
+    transform: perspective(2000px) rotateX(${mousePosition.y * -3}deg) rotateY(${mousePosition.x * 3}deg) translateZ(0);
+    -webkit-mask-image: -webkit-radial-gradient(white, black);
+  `}
   on:mousemove={handleMouseMove}
   on:mouseleave={resetMouse}
 >
   <!-- Background Glow -->
   <div 
-    class="absolute -inset-1 opacity-10 group-hover:opacity-100 transition-opacity duration-700 blur-3xl -z-20 pointer-events-none"
-    style={`background: radial-gradient(circle at center, ${accent}66 0%, transparent 80%); transform: translate(${mousePosition.x * 20}px, ${mousePosition.y * 20}px);`}
+    class="absolute -inset-1 opacity-20 group-hover:opacity-100 transition-opacity duration-700 blur-[100px] -z-20 pointer-events-none"
+    style={`background: radial-gradient(circle at center, ${accent}44 0%, transparent 70%); transform: translate(${mousePosition.x * 40}px, ${mousePosition.y * 40}px);`}
   ></div>
 
   <!-- Carousel Indicators -->
   {#if featured.length > 1}
-    <div class="absolute right-4 top-1/2 -translate-y-1/2 z-30 flex flex-col gap-2">
+    <div class="absolute left-6 top-1/2 -translate-y-1/2 z-30 flex flex-col gap-2.5">
       {#each featured as char, i}
         <button
           type="button"
           aria-label={`${$t('card.view')} ${char.name}`}
-          class="h-1.5 w-1.5 rounded-full transition-all duration-300"
-          style={`background-color: ${activeIndex === i ? accent : 'rgba(255,255,255,0.2)'}; transform: scale(${activeIndex === i ? 1.5 : 1});`}
+          class="h-1 w-4 rounded-full transition-all duration-500"
+          style={`background-color: ${activeIndex === i ? accent : 'rgba(255,255,255,0.1)'}; width: ${activeIndex === i ? '24px' : '12px'};`}
           on:click|stopPropagation={() => (activeIndex = i)}
         ></button>
       {/each}
@@ -157,104 +168,70 @@
 
   {#if currentImage && !imageFailed}
     <div 
-      class="absolute inset-x-0 top-0 h-[105%] transition-transform duration-500 ease-out z-0 pointer-events-none"
-      style={`transform: scale(1.1) translate(${mousePosition.x * -10}px, ${mousePosition.y * -10}px);`}
+      class="absolute inset-0 transition-transform duration-700 ease-out z-0 pointer-events-none"
+      style={`transform: scale(1.05) translate(${mousePosition.x * -15}px, ${mousePosition.y * -15}px);`}
     >
       {#key activeIndex}
         <img
           src={currentImage}
           alt={currentTitle}
-          class={`absolute inset-0 h-full w-full object-cover object-top transition-opacity duration-1000 ${countdown.finished ? 'opacity-40 grayscale-[0.5]' : 'opacity-100'}`}
-          in:fade={{ duration: 600 }}
+          class={`absolute right-0 h-full w-full sm:w-2/3 object-cover object-center transition-opacity duration-1000 ${countdown.finished ? 'opacity-30 grayscale' : 'opacity-100'}`}
+          in:fade={{ duration: 800 }}
           loading="lazy"
           on:error={() => (imageFailed = true)}
         />
       {/key}
-      <!-- Vignette and Gradient Overlay -->
-      <div class="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/40 to-transparent"></div>
-      <div class="absolute inset-0 bg-slate-950/20 group-hover:bg-transparent transition-colors duration-500"></div>
+      <!-- Multi-layered Gradients for Banner Look -->
+      <div class="absolute inset-0 bg-gradient-to-r from-slate-950 via-slate-950/80 to-transparent"></div>
+      <div class="absolute inset-0 bg-gradient-to-t from-slate-950/60 via-transparent to-transparent"></div>
     </div>
   {:else}
     <div class="absolute inset-0 flex items-center justify-center bg-slate-900 z-0 overflow-hidden pointer-events-none">
-      <div class="absolute text-[8rem] font-black text-white/5 whitespace-nowrap -rotate-12 select-none uppercase pointer-events-none">
-        {gameLabel} {gameLabel} {gameLabel}
-      </div>
-      <span class="text-4xl font-black text-white/20 uppercase italic tracking-tighter z-10">{currentTitle}</span>
+      <span class="text-6xl font-black text-white/20 uppercase italic tracking-tighter z-10">{currentTitle}</span>
     </div>
   {/if}
 
   <!-- Shine Effect on Hover -->
-  <div class="absolute inset-0 opacity-0 group-hover:opacity-20 pointer-events-none transition-opacity duration-500 z-10 overflow-hidden">
-    <div class="absolute inset-0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000 ease-in-out bg-gradient-to-r from-transparent via-white to-transparent -skew-x-12"></div>
+  <div class="absolute inset-0 opacity-0 group-hover:opacity-30 pointer-events-none transition-opacity duration-700 z-10 overflow-hidden">
+    <div class="absolute inset-0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1500 ease-in-out bg-gradient-to-r from-transparent via-white/40 to-transparent -skew-x-12"></div>
   </div>
 
-  <div class="relative z-20 flex h-full flex-col justify-end p-5 sm:p-6">
-    <!-- Header: Badge and Title -->
-    <div class="mb-auto flex items-start justify-between">
-      <div
-        class="rounded-md border px-2 py-0.5 text-[10px] font-black uppercase tracking-widest backdrop-blur-md"
-        style={`border-color: ${accent}88; background-color: ${accent}22; color: ${accent};`}
-      >
-        {gameLabel}
+  <div class="relative z-20 flex h-full items-center p-8 sm:p-12 lg:p-16">
+    <div class="flex flex-col max-w-lg">
+      <div class="space-y-4">
+        <h3 class="text-5xl sm:text-6xl lg:text-7xl font-black text-white uppercase italic tracking-tighter leading-[0.85] group-hover:text-transparent group-hover:bg-clip-text group-hover:bg-gradient-to-r group-hover:from-white group-hover:to-white/70 transition-all duration-500">
+          {currentTitle}
+        </h3>
       </div>
-      {#if category}
-        <span class="text-[9px] font-bold uppercase tracking-widest text-white/40 bg-white/5 px-2 py-0.5 rounded backdrop-blur-sm border border-white/5">
-          {category}
-        </span>
-      {/if}
-    </div>
 
-    <div class="mt-4 text-center">
-      <h3 class="text-2xl font-black text-white uppercase italic tracking-tighter leading-none group-hover:text-transparent group-hover:bg-clip-text group-hover:bg-gradient-to-r group-hover:from-white group-hover:to-white/60 transition-all duration-300 min-h-[0.8em]">
-        {currentTitle}
-      </h3>
-      {#if subtitle}
-        <p class="mt-1.5 text-[11px] font-bold text-white/50 uppercase tracking-widest line-clamp-1">{subtitle}</p>
-      {/if}
-    </div>
-
-    <div class="mt-6 space-y-3">
-      {#if countdown.finished}
-        <div class="w-full bg-red-500/10 border border-red-500/20 rounded-xl py-4 text-center backdrop-blur-md">
-          <span class="text-xl font-black text-red-500 italic tracking-tighter uppercase animate-pulse">
-            {$t('card.finished')}
-          </span>
-        </div>
-      {:else}
-        <div class="flex items-center gap-1.5 overflow-hidden">
-          {#each [
-            { value: countdown.days, label: $t('card.days') },
-            { value: countdown.hours, label: $t('card.hours') },
-            { value: countdown.minutes, label: $t('card.minutes') },
-            { value: countdown.seconds, label: $t('card.seconds') }
-          ] as part, i}
-            <div class="flex-1 flex flex-col items-center bg-white/5 rounded-lg py-2 border border-white/5 backdrop-blur-md relative overflow-hidden group/item">
-              <span class="text-xl font-black text-white tabular-nums z-10">
-                {formatTime(part.value)}
-              </span>
-              <span class="text-[9px] font-bold text-white/30 uppercase z-10">{part.label}</span>
-              <div 
-                class="absolute bottom-0 left-0 h-0.5 w-full scale-x-0 group-hover/item:scale-x-100 transition-transform duration-300"
-                style={`background-color: ${accent};`}
-              ></div>
-            </div>
-            {#if i < 3}
-              <span class="text-white/20 font-black animate-pulse">:</span>
-            {/if}
-          {/each}
-        </div>
-      {/if}
-
-      <div class="flex flex-col items-center gap-1.5 pt-2">
-        <div class="flex items-center gap-2">
-          <div class={`h-1.5 w-1.5 rounded-full ${countdown.finished ? 'bg-red-600 shadow-[0_0_8px_rgba(220,38,38,0.6)]' : 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)] shadow-emerald-500/50'} ${!countdown.finished && 'animate-pulse'}`}></div>
-          <span class="text-[10px] font-black uppercase tracking-[0.2em] text-white/50">
-            {countdown.finished ? $t('card.finished') : $t('card.open')}
-          </span>
-        </div>
-        <div class="text-[8px] font-black text-white/20 uppercase tracking-[0.3em]">
-          {$t('card.sync')}
-        </div>
+      <div class="mt-12 sm:mt-16">
+        {#if countdown.finished}
+          <div class="px-8 py-4 bg-red-600/20 border border-red-500/30 rounded-2xl backdrop-blur-xl">
+            <span class="text-2xl font-black text-red-500 italic tracking-tighter uppercase animate-pulse">
+              {$t('card.finished')}
+            </span>
+          </div>
+        {:else}
+          <div class="flex items-center gap-4">
+            {#each [
+              { value: countdown.days, label: $t('card.days') },
+              { value: countdown.hours, label: $t('card.hours') },
+              { value: countdown.minutes, label: $t('card.minutes') },
+              { value: countdown.seconds, label: $t('card.seconds') }
+            ] as part, i}
+              <div class="flex flex-col items-center min-w-[75px] sm:min-w-[85px] bg-white/[0.02] rounded-[1.25rem] p-5 sm:p-6 border border-white/5 backdrop-blur-3xl group/item relative overflow-hidden transition-all duration-500 hover:bg-white/[0.08] hover:-translate-y-1">
+                <span class="text-3xl sm:text-4xl font-black text-white tabular-nums z-10 leading-none mb-1">
+                  {formatTime(part.value)}
+                </span>
+                <span class="text-[9px] font-black text-white/20 uppercase tracking-[0.2em] z-10">{part.label}</span>
+                <div 
+                  class="absolute bottom-0 left-1/2 -translate-x-1/2 h-1 w-2/3 scale-x-0 group-hover/item:scale-x-100 transition-transform duration-500"
+                  style={`background-color: ${accent}; shadow: 0 0 15px ${accent};`}
+                ></div>
+              </div>
+            {/each}
+          </div>
+        {/if}
       </div>
     </div>
   </div>
