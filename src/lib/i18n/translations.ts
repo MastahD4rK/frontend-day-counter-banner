@@ -33,6 +33,7 @@ const translations: Record<Locale, Record<string, string>> = {
     'status.maintenance': 'Sin banners activos — posible mantenimiento',
     'status.error': 'Error al obtener datos de este juego',
     'footer.madeBy': 'Hecho por',
+    'footer.disclaimer': 'Este sitio es un proyecto fan no afiliado ni respaldado por COGNOSPHERE PTE. LTD. ni HoYoverse. Genshin Impact, Honkai: Star Rail y Zenless Zone Zero son marcas registradas de COGNOSPHERE PTE. LTD.',
   },
   en: {
     'nav.all': 'All',
@@ -58,6 +59,7 @@ const translations: Record<Locale, Record<string, string>> = {
     'status.maintenance': 'No active banners — possible maintenance',
     'status.error': 'Error fetching data for this game',
     'footer.madeBy': 'Made by',
+    'footer.disclaimer': 'This is a fan project not affiliated with or endorsed by COGNOSPHERE PTE. LTD. or HoYoverse. Genshin Impact, Honkai: Star Rail, and Zenless Zone Zero are trademarks of COGNOSPHERE PTE. LTD.',
   }
 };
 
