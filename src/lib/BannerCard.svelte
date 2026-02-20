@@ -46,6 +46,34 @@
   const currentTitle = $derived(activeCharacter?.name || banner.character)
   const currentImage = $derived(activeCharacter?.image || '')
 
+  // --- Progress bar (using real start_date from backend) ---
+  const startDate = $derived(new Date(banner.start_date).getTime())
+  const progress = $derived.by(() => {
+    if (Number.isNaN(targetDate) || Number.isNaN(startDate)) return 0
+    const total = targetDate - startDate
+    const elapsed = now - startDate
+    return Math.min(100, Math.max(0, (elapsed / total) * 100))
+  })
+
+  // --- Share ---
+  let copied = $state(false)
+  const shareUrl = $derived(`${typeof window !== 'undefined' ? window.location.origin : ''}`)
+
+  const handleShare = async () => {
+    const text = `${currentTitle} — ${countdown.days}d ${countdown.hours}h ${countdown.minutes}m restantes`
+    if (typeof navigator !== 'undefined' && navigator.share) {
+      try {
+        await navigator.share({ title: 'Banner Counter', text, url: shareUrl })
+        return
+      } catch { /* cancelled */ }
+    }
+    try {
+      await navigator.clipboard.writeText(`${text}\n${shareUrl}`)
+      copied = true
+      setTimeout(() => (copied = false), 2000)
+    } catch { /* clipboard denied */ }
+  }
+
   const formatTime = (value: number) => String(value).padStart(2, '0')
 
   onMount(() => {
@@ -110,7 +138,7 @@
   {/if}
 
   <div class="relative z-20 flex h-full items-end sm:items-center p-5 pb-6 sm:p-12 lg:p-16">
-    <div class="flex flex-col max-w-lg">
+    <div class="flex flex-col max-w-lg w-full">
       <div class="grid grid-cols-1">
         {#key currentTitle}
           <div 
@@ -125,27 +153,59 @@
         {/key}
       </div>
 
-      <div class="mt-4 sm:mt-10">
-        {#if countdown.finished}
-          <span class="text-base sm:text-2xl font-black text-red-500 italic tracking-tighter uppercase">
-            {$t('card.finished')}
-          </span>
-        {:else}
-          <div class="flex items-baseline gap-0.5 sm:gap-1 font-mono">
-            <span class="text-2xl sm:text-5xl font-black text-white tabular-nums">{formatTime(countdown.days)}</span>
-            <span class="text-xs sm:text-xl font-bold text-white/30">d</span>
-            <span class="text-white/10 text-base sm:text-2xl mx-0.5 sm:mx-1">:</span>
-            <span class="text-2xl sm:text-5xl font-black text-white tabular-nums">{formatTime(countdown.hours)}</span>
-            <span class="text-xs sm:text-xl font-bold text-white/30">h</span>
-            <span class="text-white/10 text-base sm:text-2xl mx-0.5 sm:mx-1">:</span>
-            <span class="text-2xl sm:text-5xl font-black text-white tabular-nums">{formatTime(countdown.minutes)}</span>
-            <span class="text-xs sm:text-xl font-bold text-white/30">m</span>
-            <span class="text-white/10 text-base sm:text-2xl mx-0.5 sm:mx-1">:</span>
-            <span class="text-2xl sm:text-5xl font-black text-white tabular-nums">{formatTime(countdown.seconds)}</span>
-            <span class="text-xs sm:text-xl font-bold text-white/30">s</span>
-          </div>
-        {/if}
+      <div class="mt-4 sm:mt-10 flex flex-col gap-3">
+        <!-- Countdown -->
+        <div>
+          {#if countdown.finished}
+            <span class="text-base sm:text-2xl font-black text-red-500 italic tracking-tighter uppercase">
+              {$t('card.finished')}
+            </span>
+          {:else}
+            <div class="flex items-baseline gap-0.5 sm:gap-1 font-mono">
+              <span class="text-2xl sm:text-5xl font-black text-white tabular-nums">{formatTime(countdown.days)}</span>
+              <span class="text-xs sm:text-xl font-bold text-white/30">d</span>
+              <span class="text-white/10 text-base sm:text-2xl mx-0.5 sm:mx-1">:</span>
+              <span class="text-2xl sm:text-5xl font-black text-white tabular-nums">{formatTime(countdown.hours)}</span>
+              <span class="text-xs sm:text-xl font-bold text-white/30">h</span>
+              <span class="text-white/10 text-base sm:text-2xl mx-0.5 sm:mx-1">:</span>
+              <span class="text-2xl sm:text-5xl font-black text-white tabular-nums">{formatTime(countdown.minutes)}</span>
+              <span class="text-xs sm:text-xl font-bold text-white/30">m</span>
+              <span class="text-white/10 text-base sm:text-2xl mx-0.5 sm:mx-1">:</span>
+              <span class="text-2xl sm:text-5xl font-black text-white tabular-nums">{formatTime(countdown.seconds)}</span>
+              <span class="text-xs sm:text-xl font-bold text-white/30">s</span>
+            </div>
+          {/if}
+        </div>
+
+        <!-- Share Button (below countdown on desktop, inline on mobile) -->
+        <button
+          onclick={handleShare}
+          class="self-start flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider text-white/50 bg-white/5 border border-white/10 hover:bg-white/10 hover:text-white transition-all duration-200"
+          title="Compartir"
+        >
+          {#if copied}
+            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+            </svg>
+            <span>¡Copiado!</span>
+          {:else}
+            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+            </svg>
+            <span>Compartir</span>
+          {/if}
+        </button>
       </div>
     </div>
   </div>
+
+  <!-- Progress Bar -->
+  {#if !countdown.finished}
+    <div class="absolute bottom-0 left-0 right-0 z-30 h-1.5 bg-white/10 rounded-b-2xl sm:rounded-b-[2rem] overflow-hidden">
+      <div
+        class="h-full transition-all duration-1000"
+        style={`width: ${progress}%; background: linear-gradient(to right, ${accent}bb, ${accent}ff);`}
+      ></div>
+    </div>
+  {/if}
 </article>

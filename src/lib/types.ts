@@ -4,6 +4,7 @@ export interface Banner {
   id: string
   game_id: 'genshin' | 'hsr' | 'zzz'
   character: string
+  start_date: string            // ISO 8601 UTC
   end_date: string              // ISO 8601 UTC
   color: string                 // Hex: "#60A5FA", "#A855F7", "#FB923C"
   featured_characters: string[] // Names of all 5★ featured characters

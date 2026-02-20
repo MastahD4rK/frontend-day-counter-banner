@@ -2,6 +2,29 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ─── Theme Variables ─────────────────────────────── */
+:root {
+  --c-bg: #0a0a0f;
+  --c-header: rgba(10,10,15,0.80);
+  --c-panel: rgba(10,10,15,0.95);
+  --c-control: rgba(255,255,255,0.03);
+  --c-border: rgba(255,255,255,0.05);
+  --c-border-md: rgba(255,255,255,0.10);
+  --c-text: #ffffff;
+  --c-text-muted: rgba(148,163,184,1);
+}
+
+html.light {
+  --c-bg: #ededf5;
+  --c-header: rgba(237,237,245,0.85);
+  --c-panel: rgba(237,237,245,0.98);
+  --c-control: rgba(0,0,0,0.04);
+  --c-border: rgba(0,0,0,0.08);
+  --c-border-md: rgba(0,0,0,0.12);
+  --c-text: #0a0a14;
+  --c-text-muted: rgba(71,85,105,1);
+}
+
 @layer base {
   html, body {
     overflow: hidden;
@@ -35,5 +58,15 @@
   }
   .scrollbar-thin::-webkit-scrollbar-thumb:hover {
     background: rgba(255, 255, 255, 0.15);
+  }
+
+  html.light .scrollbar-thin {
+    scrollbar-color: rgba(0, 0, 0, 0.15) transparent;
+  }
+  html.light .scrollbar-thin::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.15);
+  }
+  html.light .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 0, 0, 0.25);
   }
 }
