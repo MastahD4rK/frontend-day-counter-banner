@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://banner-counter.pages.dev/sitemap.xml
+Sitemap: https://chronogacha.pages.dev/sitemap.xml

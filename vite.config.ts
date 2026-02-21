@@ -39,8 +39,8 @@ export default defineConfig({
         ],
       },
       manifest: {
-        name: 'Banner Counter',
-        short_name: 'BannerCounter',
+        name: 'ChronoGacha',
+        short_name: 'ChronoGacha',
         description: 'Cuenta regresiva para banners de Genshin Impact, Honkai: Star Rail y Zenless Zone Zero',
         start_url: '/',
         display: 'standalone',

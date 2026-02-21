@@ -291,7 +291,7 @@
       <div class="flex items-center justify-between lg:hidden mb-2.5">
         <div class="flex items-center gap-2">
           <h1 class="text-xl font-black uppercase italic tracking-tighter">
-            BANNER <span class="transition-colors duration-500" style={`color: ${themeColor}`}>COUNTER</span>
+            CHRONO<span class="transition-colors duration-500" style={`color: ${themeColor}`}>GACHA</span>
           </h1>
           {#if isRefreshing}
             <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" title="Actualizando..."></span>
@@ -416,7 +416,7 @@
       <div class="hidden lg:flex items-center justify-between">
         <div class="flex items-center gap-2.5">
           <h1 class="text-2xl font-black uppercase italic tracking-tighter">
-            BANNER <span class="transition-colors duration-500" style={`color: ${themeColor}`}>COUNTER</span>
+            CHRONO<span class="transition-colors duration-500" style={`color: ${themeColor}`}>GACHA</span>
           </h1>
           {#if isRefreshing}
             <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" title="Actualizando..."></span>

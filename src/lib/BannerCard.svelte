@@ -63,7 +63,7 @@
     const text = `${currentTitle} — ${countdown.days}d ${countdown.hours}h ${countdown.minutes}m restantes`
     if (typeof navigator !== 'undefined' && navigator.share) {
       try {
-        await navigator.share({ title: 'Banner Counter', text, url: shareUrl })
+        await navigator.share({ title: 'ChronoGacha', text, url: shareUrl })
         return
       } catch { /* cancelled */ }
     }
