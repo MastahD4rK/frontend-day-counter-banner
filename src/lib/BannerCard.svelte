@@ -76,6 +76,15 @@
 
   const formatTime = (value: number) => String(value).padStart(2, '0')
 
+  const formatDate = (iso: string) => {
+    const d = new Date(iso)
+    if (Number.isNaN(d.getTime())) return '—'
+    return d.toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' })
+  }
+
+  const formattedStart = $derived(formatDate(banner.start_date))
+  const formattedEnd   = $derived(formatDate(banner.end_date))
+
   onMount(() => {
     ticker = setInterval(() => { now = Date.now() }, 1000)
 
@@ -153,7 +162,7 @@
         {/key}
       </div>
 
-      <div class="mt-4 sm:mt-10 flex flex-col gap-3">
+      <div class="mt-4 sm:mt-10 flex items-end gap-3 sm:flex-col sm:items-start sm:gap-5">
         <!-- Countdown -->
         <div>
           {#if countdown.finished}
@@ -177,31 +186,44 @@
           {/if}
         </div>
 
-        <!-- Share Button (below countdown on desktop, inline on mobile) -->
+        <!-- Share Button -->
         <button
           onclick={handleShare}
-          class="self-start flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider text-white/50 bg-white/5 border border-white/10 hover:bg-white/10 hover:text-white transition-all duration-200"
-          title="Compartir"
+          class={`flex-shrink-0 flex items-center justify-center sm:gap-2 sm:px-4 sm:py-2.5 w-8 h-8 sm:w-auto sm:h-auto rounded-xl border transition-all duration-200 sm:text-xs sm:font-black sm:uppercase sm:tracking-wider ${copied ? 'text-green-400 bg-green-500/10 border-green-500/30' : 'text-white/40 bg-white/5 border-white/10 hover:bg-white/10 hover:text-white'}`}
+          title={copied ? $t('card.copied') : $t('card.share')}
         >
           {#if copied}
-            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+            <svg class="w-4 h-4 sm:w-4 sm:h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
               <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
             </svg>
-            <span>¡Copiado!</span>
+            <span class="hidden sm:inline">{$t('card.copied')}</span>
           {:else}
-            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <svg class="w-4 h-4 sm:w-4 sm:h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
               <path stroke-linecap="round" stroke-linejoin="round" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
             </svg>
-            <span>Compartir</span>
+            <span class="hidden sm:inline">{$t('card.share')}</span>
           {/if}
         </button>
+
+        <!-- Dates -->
+        <div class="hidden sm:flex items-center gap-1.5 text-[10px] font-medium text-white/30 tracking-wide">
+          <svg class="w-3 h-3 opacity-60" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+          </svg>
+          <span>{formattedStart}</span>
+          <span class="opacity-40">—</span>
+          <span>{formattedEnd}</span>
+        </div>
       </div>
     </div>
   </div>
 
   <!-- Progress Bar -->
   {#if !countdown.finished}
-    <div class="absolute bottom-0 left-0 right-0 z-30 h-1.5 bg-white/10 rounded-b-2xl sm:rounded-b-[2rem] overflow-hidden">
+    <div
+      class="absolute bottom-0 left-0 right-0 z-30 h-1.5 bg-white/10 rounded-b-2xl sm:rounded-b-[2rem] overflow-hidden"
+      title={`${formattedStart} — ${formattedEnd}`}
+    >
       <div
         class="h-full transition-all duration-1000"
         style={`width: ${progress}%; background: linear-gradient(to right, ${accent}bb, ${accent}ff);`}
