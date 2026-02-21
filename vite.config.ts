@@ -48,6 +48,12 @@ export default defineConfig({
         theme_color: '#0a0a0f',
         icons: [
           {
+            src: '/favicon.svg',
+            sizes: 'any',
+            type: 'image/svg+xml',
+            purpose: 'any',
+          },
+          {
             src: '/pwa-192x192.png',
             sizes: '192x192',
             type: 'image/png',
