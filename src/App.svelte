@@ -10,6 +10,32 @@
   const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api'
   const POLL_INTERVAL = 60_000  // 60s polling
   const EXPIRY_REFETCH_DELAY = 5_000  // 5s after banner expires
+  const CACHE_KEY_PREFIX = 'bncache_'
+  const CACHE_MAX_AGE = 24 * 60 * 60 * 1000  // 24h — after that, stale cache is discarded
+
+  // --- Cache helpers ---
+  interface CacheEntry {
+    banners: Banner[]
+    gameStatuses: GameStatus[]
+    dataHash: string
+    cachedAt: number
+  }
+
+  const cacheKey = (server: string) => `${CACHE_KEY_PREFIX}${server}`
+
+  const saveCache = (server: string, entry: CacheEntry) => {
+    try { localStorage.setItem(cacheKey(server), JSON.stringify(entry)) } catch {}
+  }
+
+  const loadCache = (server: string): CacheEntry | null => {
+    try {
+      const raw = localStorage.getItem(cacheKey(server))
+      if (!raw) return null
+      const entry = JSON.parse(raw) as CacheEntry
+      if (Date.now() - entry.cachedAt > CACHE_MAX_AGE) return null
+      return entry
+    } catch { return null }
+  }
 
   const TABS = [
     { key: 'all' as const, label: 'nav.all' },
@@ -26,6 +52,10 @@
   ] as const
 
   let isLoading = true
+  let isRefreshing = false
+  let isOffline = false
+  let isFromCache = false
+  let lastUpdatedAt: number | null = null
   let errorMessage = ''
   let banners: Banner[] = []
   let gameStatuses: GameStatus[] = []
@@ -40,9 +70,21 @@
 
   const fetchBanners = async (silent = false) => {
     if (!silent) {
-      isLoading = true
+      // Before first real load, hydrate from cache immediately (stale-while-revalidate)
+      const cached = loadCache(currentServer)
+      if (cached) {
+        banners = cached.banners
+        gameStatuses = cached.gameStatuses
+        dataHash = cached.dataHash
+        lastUpdatedAt = cached.cachedAt
+        isFromCache = true
+        isLoading = false  // show cached content while fetching fresh
+      } else {
+        isLoading = true
+      }
       errorMessage = ''
     }
+    if (silent) isRefreshing = true
     try {
       const response = await fetch(`${API_BASE}/banners?server=${currentServer}`)
       if (!response.ok) throw new Error(`API ${response.status}`)
@@ -51,14 +93,29 @@
       banners = envelope.banners ?? []
       gameStatuses = envelope.game_statuses ?? []
       dataHash = envelope.data_hash ?? ''
+      lastUpdatedAt = Date.now()
+      isOffline = false
+      isFromCache = false
 
+      saveCache(currentServer, { banners, gameStatuses, dataHash, cachedAt: lastUpdatedAt })
       scheduleExpiryRefresh()
     } catch (error) {
-      if (!silent) {
+      const cached = loadCache(currentServer)
+      if (cached && banners.length === 0) {
+        // Not yet hydrated — use cache as fallback
+        banners = cached.banners
+        gameStatuses = cached.gameStatuses
+        dataHash = cached.dataHash
+        lastUpdatedAt = cached.cachedAt
+        isFromCache = true
+      }
+      isOffline = true
+      if (!silent && banners.length === 0) {
         errorMessage = error instanceof Error ? error.message : 'No se pudo cargar los banners'
       }
     } finally {
-      if (!silent) isLoading = false
+      isLoading = false
+      isRefreshing = false
     }
   }
 
@@ -111,6 +168,19 @@
   const getGameStatus = (gameId: string): GameStatus | undefined =>
     gameStatuses.find(s => s.game_id === gameId)
 
+  // --- Time ago helper ---
+  const timeAgo = (ts: number): string => {
+    const diff = Math.floor((Date.now() - ts) / 1000)
+    if (diff < 60) return 'justo ahora'
+    if (diff < 3600) return `hace ${Math.floor(diff / 60)} min`
+    if (diff < 86400) return `hace ${Math.floor(diff / 3600)} h`
+    return `hace ${Math.floor(diff / 86400)} d`
+  }
+
+  let tickNow = Date.now()
+  let timeTicker: ReturnType<typeof setInterval>
+  $: lastUpdatedLabel = lastUpdatedAt && tickNow > 0 ? timeAgo(lastUpdatedAt) : ''
+
   // --- UI state ---
 
   let showServerDropdown = false
@@ -158,11 +228,21 @@
   }
 
   onMount(() => {
-    // Reactive statement handles initial fetch + polling
+    timeTicker = setInterval(() => { tickNow = Date.now() }, 30_000)
+    // Refresh when user returns to tab after being away
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') fetchBanners(true)
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => {
+      clearInterval(timeTicker)
+      document.removeEventListener('visibilitychange', onVisible)
+    }
   })
 
   onDestroy(() => {
     stopPolling()
+    clearInterval(timeTicker)
     if (expiryTimer) clearTimeout(expiryTimer)
   })
 </script>
@@ -209,9 +289,16 @@
       <!-- Mobile layout: 2 rows. Desktop: 1 row -->
       <!-- ROW 1 (mobile): Logo + controls | Desktop: Logo -->
       <div class="flex items-center justify-between lg:hidden mb-2.5">
-        <h1 class="text-xl font-black uppercase italic tracking-tighter">
-          BANNER <span class="transition-colors duration-500" style={`color: ${themeColor}`}>COUNTER</span>
-        </h1>
+        <div class="flex items-center gap-2">
+          <h1 class="text-xl font-black uppercase italic tracking-tighter">
+            BANNER <span class="transition-colors duration-500" style={`color: ${themeColor}`}>COUNTER</span>
+          </h1>
+          {#if isRefreshing}
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" title="Actualizando..."></span>
+          {:else if isOffline}
+            <span class="w-1.5 h-1.5 rounded-full bg-amber-400" title="Sin conexión"></span>
+          {/if}
+        </div>
 
         <!-- Right controls: theme toggle + lang -->
         <div class="flex items-center gap-1.5">
@@ -327,9 +414,16 @@
 
       <!-- DESKTOP: single row -->
       <div class="hidden lg:flex items-center justify-between">
-        <h1 class="text-2xl font-black uppercase italic tracking-tighter">
-          BANNER <span class="transition-colors duration-500" style={`color: ${themeColor}`}>COUNTER</span>
-        </h1>
+        <div class="flex items-center gap-2.5">
+          <h1 class="text-2xl font-black uppercase italic tracking-tighter">
+            BANNER <span class="transition-colors duration-500" style={`color: ${themeColor}`}>COUNTER</span>
+          </h1>
+          {#if isRefreshing}
+            <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" title="Actualizando..."></span>
+          {:else if isOffline}
+            <span class="w-2 h-2 rounded-full bg-amber-400" title="Sin conexión"></span>
+          {/if}
+        </div>
 
         <div class="flex items-center gap-4">
           <!-- Server Selection -->
@@ -442,11 +536,26 @@
     </div>
   </header>
 
+  <!-- Offline / cache status bar -->
+  {#if isOffline && isFromCache}
+    <div class="sticky top-[var(--header-h,56px)] z-40 w-full" in:fly={{ y: -8, duration: 250 }} out:fade={{ duration: 200 }}>
+      <div class="flex items-center justify-center gap-2 px-4 py-1.5 text-[10px] font-black uppercase tracking-widest bg-amber-500/10 border-b border-amber-500/20 text-amber-300">
+        <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M18.364 5.636a9 9 0 010 12.728M15.536 8.464a5 5 0 010 7.072M6.343 6.343a9 9 0 000 12.728M9.172 9.172a5 5 0 000 7.07M12 12h.01" />
+        </svg>
+        <span>Sin conexión &mdash; {lastUpdatedLabel ? `datos de ${lastUpdatedLabel}` : 'datos en caché'}</span>
+      </div>
+    </div>
+  {/if}
+
   <section class="relative mx-auto max-w-7xl px-3 sm:px-4 py-4 sm:py-6 lg:py-10 grid grid-cols-1 overflow-hidden">
     {#if isLoading}
       <div class="col-start-1 row-start-1 flex flex-col items-center gap-5 sm:gap-10" out:fade={{ duration: 250 }}>
-        {#each Array(3) as _}
-          <BannerSkeleton />
+        {#each ['genshin', 'hsr', 'zzz'] as game}
+          <div class="w-full max-w-4xl space-y-5 sm:space-y-6">
+            <div class="h-6 sm:h-8 w-40 sm:w-56 mx-auto rounded-lg bg-white/5 animate-pulse"></div>
+            <BannerSkeleton {game} />
+          </div>
         {/each}
       </div>
     {:else if errorMessage}
@@ -556,6 +665,11 @@
   <footer class="relative mx-auto max-w-7xl px-3 sm:px-4 pb-4 pt-4 sm:pt-6">
     <div class="h-[1px] w-full mb-4" style="background: linear-gradient(to right, transparent, var(--c-border-md), transparent);"></div>
     <div class="flex flex-col items-center gap-2">
+      {#if lastUpdatedLabel}
+        <p class="text-[9px] uppercase tracking-widest font-medium opacity-40" style="color: var(--c-text-muted);">
+          {isOffline ? '⚠ Sin conexión ·' : '↻'} Actualizado {lastUpdatedLabel}
+        </p>
+      {/if}
       <div class="flex items-center justify-center gap-2 text-[10px] sm:text-xs" style="color: var(--c-text-muted);">
         <span class="uppercase tracking-wider font-medium">{$t('footer.madeBy')}</span>
         <a
