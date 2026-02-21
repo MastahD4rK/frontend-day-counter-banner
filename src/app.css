@@ -70,3 +70,19 @@ html.light {
     background: rgba(0, 0, 0, 0.25);
   }
 }
+
+/* ─── Global Select Fixes ─── */
+select option, 
+select optgroup {
+  background-color: #16161a !important; /* Forces dark background in dark mode */
+  color: #ffffff !important;
+  font-family: inherit;
+  font-weight: 600;
+  padding: 12px;
+}
+
+html.light select option,
+html.light select optgroup {
+  background-color: #ffffff !important;
+  color: #0a0a14 !important;
+}

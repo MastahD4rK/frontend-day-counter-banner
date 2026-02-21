@@ -5,8 +5,8 @@
   import { resolveCharacterImage } from './utils/images'
   import type { Banner } from './types'
 
-  interface Props { banner: Banner }
-  const { banner }: Props = $props()
+  interface Props { banner: Banner; isHistory?: boolean }
+  const { banner, isHistory = false }: Props = $props()
 
   // Reactive state
   let now = $state(Date.now())
@@ -60,7 +60,13 @@
   const shareUrl = $derived(`${typeof window !== 'undefined' ? window.location.origin : ''}`)
 
   const handleShare = async () => {
-    const text = `${currentTitle} — ${countdown.days}d ${countdown.hours}h ${countdown.minutes}m restantes`
+    let text = `${currentTitle}`
+    if (isHistory) {
+      text += ` (${formattedStart} — ${formattedEnd})`
+    } else {
+      text += ` — ${countdown.days}d ${countdown.hours}h ${countdown.minutes}m restantes`
+    }
+    
     if (typeof navigator !== 'undefined' && navigator.share) {
       try {
         await navigator.share({ title: 'ChronoGacha', text, url: shareUrl })
@@ -163,9 +169,18 @@
       </div>
 
       <div class="mt-4 sm:mt-10 flex items-end gap-3 sm:flex-col sm:items-start sm:gap-5">
-        <!-- Countdown -->
+        <!-- Countdown or Dates for History -->
         <div>
-          {#if countdown.finished}
+          {#if isHistory}
+            <div class="flex flex-col gap-0.5 sm:gap-1">
+               <span class="text-[10px] sm:text-sm font-black text-white/40 uppercase tracking-widest leading-none">{$t('card.period')}</span>
+               <div class="flex items-center gap-1.5 text-base sm:text-4xl font-black text-white italic tracking-tighter tabular-nums">
+                 <span>{formattedStart}</span>
+                 <span class="text-white/20">—</span>
+                 <span>{formattedEnd}</span>
+               </div>
+            </div>
+          {:else if countdown.finished}
             <span class="text-base sm:text-2xl font-black text-red-500 italic tracking-tighter uppercase">
               {$t('card.finished')}
             </span>
@@ -186,40 +201,63 @@
           {/if}
         </div>
 
-        <!-- Share Button -->
-        <button
-          onclick={handleShare}
-          class={`flex-shrink-0 flex items-center justify-center sm:gap-2 sm:px-4 sm:py-2.5 w-8 h-8 sm:w-auto sm:h-auto rounded-xl border transition-all duration-200 sm:text-xs sm:font-black sm:uppercase sm:tracking-wider ${copied ? 'text-green-400 bg-green-500/10 border-green-500/30' : 'text-white/40 bg-white/5 border-white/10 hover:bg-white/10 hover:text-white'}`}
-          title={copied ? $t('card.copied') : $t('card.share')}
-        >
-          {#if copied}
-            <svg class="w-4 h-4 sm:w-4 sm:h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
-            </svg>
-            <span class="hidden sm:inline">{$t('card.copied')}</span>
-          {:else}
-            <svg class="w-4 h-4 sm:w-4 sm:h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
-            </svg>
-            <span class="hidden sm:inline">{$t('card.share')}</span>
-          {/if}
-        </button>
+        {#if !isHistory}
+          <!-- Share Button (Original for Live) -->
+          <button
+            onclick={handleShare}
+            class={`flex-shrink-0 flex items-center justify-center sm:gap-2 sm:px-4 sm:py-2.5 w-8 h-8 sm:w-auto sm:h-auto rounded-xl border transition-all duration-200 sm:text-xs sm:font-black sm:uppercase sm:tracking-wider ${copied ? 'text-green-400 bg-green-500/10 border-green-500/30' : 'text-white/40 bg-white/5 border-white/10 hover:bg-white/10 hover:text-white'}`}
+            title={copied ? $t('card.copied') : $t('card.share')}
+          >
+            {#if copied}
+              <svg class="w-4 h-4 sm:w-4 sm:h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+              </svg>
+              <span class="hidden sm:inline">{$t('card.copied')}</span>
+            {:else}
+              <svg class="w-4 h-4 sm:w-4 sm:h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+              </svg>
+              <span class="hidden sm:inline">{$t('card.share')}</span>
+            {/if}
+          </button>
+        {/if}
 
-        <!-- Dates -->
-        <div class="hidden sm:flex items-center gap-1.5 text-[10px] font-medium text-white/30 tracking-wide">
-          <svg class="w-3 h-3 opacity-60" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-          </svg>
-          <span>{formattedStart}</span>
-          <span class="opacity-40">—</span>
-          <span>{formattedEnd}</span>
-        </div>
+        <!-- Dates (for Live only or secondary for History) -->
+        {#if !isHistory}
+          <div class="hidden sm:flex items-center gap-1.5 text-[10px] font-medium text-white/30 tracking-wide">
+            <svg class="w-3 h-3 opacity-60" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+            <span>{formattedStart}</span>
+            <span class="opacity-40">—</span>
+            <span>{formattedEnd}</span>
+          </div>
+        {:else}
+          <!-- Share button in different place for History -->
+          <button
+            onclick={handleShare}
+            class={`flex-shrink-0 flex items-center justify-center sm:gap-2 sm:px-4 sm:py-2.5 w-10 h-10 sm:w-auto sm:h-auto rounded-xl border transition-all duration-200 sm:text-xs sm:font-black sm:uppercase sm:tracking-wider ${copied ? 'text-green-400 bg-green-500/10 border-green-500/30' : 'text-white/40 bg-white/5 border-white/10 hover:bg-white/10 hover:text-white'}`}
+            title={copied ? $t('card.copied') : $t('card.share')}
+          >
+            {#if copied}
+              <svg class="w-5 h-5 sm:w-4 sm:h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+              </svg>
+              <span class="hidden sm:inline">{$t('card.copied')}</span>
+            {:else}
+              <svg class="w-5 h-5 sm:w-4 sm:h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+              </svg>
+              <span class="hidden sm:inline">{$t('card.share')}</span>
+            {/if}
+          </button>
+        {/if}
       </div>
     </div>
   </div>
 
-  <!-- Progress Bar -->
-  {#if !countdown.finished}
+  <!-- Progress Bar (Hide for History) -->
+  {#if !isHistory && !countdown.finished}
     <div
       class="absolute bottom-0 left-0 right-0 z-30 h-1.5 bg-white/10 rounded-b-2xl sm:rounded-b-[2rem] overflow-hidden"
       title={`${formattedStart} — ${formattedEnd}`}

@@ -5,7 +5,7 @@
   import BannerCard from './lib/BannerCard.svelte'
   import BannerSkeleton from './lib/BannerSkeleton.svelte'
   import { t, locale, type Locale } from './lib/i18n/translations'
-  import type { Banner, GameStatus, BannersEnvelope, StatusResponse } from './lib/types'
+  import type { Banner, GameStatus, BannersEnvelope, StatusResponse, VersionPhase, VersionsResponse, HistoryResponse } from './lib/types'
 
   const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api'
   const POLL_INTERVAL = 60_000  // 60s polling
@@ -62,6 +62,15 @@
   let dataHash = ''
   let activeFilter: 'all' | 'genshin' | 'hsr' | 'zzz' = 'all'
   let currentServer: 'america' | 'europe' | 'asia' | 'sar' = 'america'
+  let currentView: 'live' | 'history' = 'live'
+
+  // --- History state ---
+  let historyGame: 'genshin' | 'hsr' | 'zzz' = 'genshin'
+  let historyVersions: VersionPhase[] = []
+  let historyBanners: Banner[] = []
+  let selectedPhaseId: string | null = null
+  let isHistoryLoading = false
+  let isVersionsLoading = false
 
   let pollTimer: ReturnType<typeof setInterval>
   let expiryTimer: ReturnType<typeof setTimeout>
@@ -163,6 +172,80 @@
     }
   }
 
+  // --- History logic ---
+
+  const fetchVersions = async (gameId: 'genshin' | 'hsr' | 'zzz') => {
+    isVersionsLoading = true
+    try {
+      const cKey = `history_versions_${gameId}`
+      const cached = localStorage.getItem(cKey)
+      if (cached) {
+        const { data, timestamp } = JSON.parse(cached)
+        if (Date.now() - timestamp < 3600000) { // 1h TTL
+          historyVersions = data
+          if (historyVersions.length > 0 && !selectedPhaseId) {
+            selectPhase(historyVersions[0].phase_id)
+          }
+          isVersionsLoading = false
+          return
+        }
+      }
+
+      const response = await fetch(`${API_BASE}/versions?game_id=${gameId}`)
+      if (!response.ok) throw new Error('API Error')
+      const data = (await response.json()) as VersionsResponse
+      historyVersions = data.versions
+      localStorage.setItem(cKey, JSON.stringify({ data: historyVersions, timestamp: Date.now() }))
+      
+      if (historyVersions.length > 0 && !selectedPhaseId) {
+        selectPhase(historyVersions[0].phase_id)
+      }
+    } catch {
+      // Quietly fail
+    } finally {
+      isVersionsLoading = false
+    }
+  }
+
+  const fetchHistoryBanners = async (gameId: string, phaseId: string) => {
+    isHistoryLoading = true
+    try {
+      const cKey = `history_banners_${phaseId}`
+      const cached = localStorage.getItem(cKey)
+      if (cached) {
+        const { data, timestamp } = JSON.parse(cached)
+        if (Date.now() - timestamp < 3600000) { // 1h TTL
+          historyBanners = data
+          isHistoryLoading = false
+          return
+        }
+      }
+
+      const response = await fetch(`${API_BASE}/history?game_id=${gameId}&phase_id=${phaseId}`)
+      if (!response.ok) throw new Error('API Error')
+      const data = (await response.json()) as HistoryResponse
+      historyBanners = data.banners
+      localStorage.setItem(cKey, JSON.stringify({ data: historyBanners, timestamp: Date.now() }))
+    } catch {
+      // Quietly fail
+    } finally {
+      isHistoryLoading = false
+    }
+  }
+
+  const selectPhase = (phaseId: string) => {
+    selectedPhaseId = phaseId
+    fetchHistoryBanners(historyGame, phaseId)
+  }
+
+  const changeHistoryGame = (gameId: 'genshin' | 'hsr' | 'zzz') => {
+    historyGame = gameId
+    selectedPhaseId = null
+    historyVersions = []
+    historyBanners = []
+    fetchVersions(gameId)
+  }
+
   // --- Game status helpers ---
 
   const getGameStatus = (gameId: string): GameStatus | undefined =>
@@ -221,6 +304,17 @@
 
   $: activeBg = backgroundMap[activeFilter] || ''
   $: themeColor = THEME_COLORS[activeFilter] || THEME_COLORS.all
+
+  // --- Grouped versions for history ---
+  $: groupedHistoryVersions = historyVersions.reduce((acc, phase) => {
+    const existing = acc.find(g => g.version === phase.version)
+    if (existing) {
+      existing.phases.push(phase)
+    } else {
+      acc.push({ version: phase.version, phases: [phase] })
+    }
+    return acc
+  }, [] as { version: string, phases: VersionPhase[] }[])
 
   $: if (currentServer) {
     fetchBanners()
@@ -398,7 +492,7 @@
             {@const isActive = activeFilter === tab.key}
             {@const tabColor = THEME_COLORS[tab.key] || THEME_COLORS.all}
             <button
-              on:click={() => (activeFilter = tab.key)}
+              on:click={() => { activeFilter = tab.key; currentView = 'live'; }}
               class={`px-2.5 py-1.5 text-[9px] font-black uppercase tracking-wider rounded-md transition-all duration-300 whitespace-nowrap flex-shrink-0 ${
                 isActive ? 'text-white' : ''
               }`}
@@ -466,7 +560,7 @@
               {@const isActive = activeFilter === tab.key}
               {@const tabColor = THEME_COLORS[tab.key] || THEME_COLORS.all}
               <button
-                on:click={() => (activeFilter = tab.key)}
+                on:click={() => { activeFilter = tab.key; currentView = 'live'; }}
                 class={`px-4 py-2 text-[10px] font-black uppercase tracking-wider rounded-lg transition-all duration-300 whitespace-nowrap ${
                   isActive ? 'text-white' : (isDark ? 'hover:bg-white/5' : 'hover:bg-black/5')
                 }`}
@@ -549,115 +643,221 @@
   {/if}
 
   <section class="relative mx-auto max-w-7xl px-3 sm:px-4 py-4 sm:py-6 lg:py-10 grid grid-cols-1 overflow-hidden">
-    {#if isLoading}
-      <div class="col-start-1 row-start-1 flex flex-col items-center gap-5 sm:gap-10" out:fade={{ duration: 250 }}>
-        {#each ['genshin', 'hsr', 'zzz'] as game}
-          <div class="w-full max-w-4xl space-y-5 sm:space-y-6">
-            <div class="h-6 sm:h-8 w-40 sm:w-56 mx-auto rounded-lg bg-white/5 animate-pulse"></div>
-            <BannerSkeleton {game} />
-          </div>
-        {/each}
-      </div>
-    {:else if errorMessage}
-      <div class="col-start-1 row-start-1 w-full max-w-2xl mx-auto rounded-3xl border border-red-500/20 bg-red-950/20 p-8 text-center backdrop-blur-sm" in:fade out:fade={{ duration: 250 }}>
-        <div class="bg-red-500/10 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 border border-red-500/20">
-          <svg class="w-8 h-8 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-          </svg>
+    {#if currentView === 'live'}
+      {#if isLoading}
+        <div class="col-start-1 row-start-1 flex flex-col items-center gap-5 sm:gap-10" out:fade={{ duration: 250 }}>
+          {#each ['genshin', 'hsr', 'zzz'] as game}
+            <div class="w-full max-w-4xl space-y-5 sm:space-y-6">
+              <div class="h-6 sm:h-8 w-40 sm:w-56 mx-auto rounded-lg bg-white/5 animate-pulse"></div>
+              <BannerSkeleton {game} />
+            </div>
+          {/each}
         </div>
-        <h3 class="text-red-300 text-xl font-black uppercase italic tracking-tight mb-2">{$t('error.title')}</h3>
-        <p class="text-red-300/60 text-sm max-w-md mx-auto">{errorMessage}</p>
-      </div>
-    {:else}
-      {#key activeFilter}
-        <div 
-          class="col-start-1 row-start-1 w-full pt-4 flex flex-col items-center origin-top"
-          in:scale={{ duration: 700, start: 0.98, easing: cubicOut, opacity: 0 }}
-          out:fade={{ duration: 300, easing: cubicOut }}
-        >
-          {#if activeFilter === 'all'}
-            <div class="space-y-12 sm:space-y-24 w-full flex flex-col items-center">
-              {#each ['genshin', 'hsr', 'zzz'] as game}
-                {@const gameBanners = banners.filter(b => b.game_id === game)}
-                {@const status = getGameStatus(game)}
-                  <div class="w-full space-y-6 sm:space-y-10 group/game">
-                    <div class="max-w-3xl mx-auto flex flex-col items-center mb-6 sm:mb-10 text-center">
-                      <h2 class="text-2xl sm:text-4xl font-black uppercase italic tracking-tighter mb-2 sm:mb-3" style="color: var(--c-text);">
-                          {$t(`game.${game}`)}
-                      </h2>
-                      <div class="h-[1px] w-32" style="background: linear-gradient(to right, transparent, var(--c-border-md), transparent);"></div>
-                    </div>
-                    
-                    {#if status?.status === 'maintenance'}
-                      <div class="w-full max-w-4xl mx-auto rounded-2xl sm:rounded-[2rem] border border-amber-500/15 bg-amber-950/10 p-8 sm:p-12 text-center">
-                        <div class="bg-amber-500/10 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4 border border-amber-500/20">
-                          <svg class="w-6 h-6 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                          </svg>
-                        </div>
-                        <p class="text-amber-300/80 text-sm sm:text-base font-bold uppercase tracking-wider">{$t('status.maintenance')}</p>
+      {:else if errorMessage}
+        <div class="col-start-1 row-start-1 w-full max-w-2xl mx-auto rounded-3xl border border-red-500/20 bg-red-950/20 p-8 text-center backdrop-blur-sm" in:fade out:fade={{ duration: 250 }}>
+          <div class="bg-red-500/10 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 border border-red-500/20">
+            <svg class="w-8 h-8 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+          </div>
+          <h3 class="text-red-300 text-xl font-black uppercase italic tracking-tight mb-2">{$t('error.title')}</h3>
+          <p class="text-red-300/60 text-sm max-w-md mx-auto">{errorMessage}</p>
+        </div>
+      {:else}
+        {#key activeFilter}
+          <div 
+            class="col-start-1 row-start-1 w-full pt-4 flex flex-col items-center origin-top"
+            in:scale={{ duration: 700, start: 0.98, easing: cubicOut, opacity: 0 }}
+            out:fade={{ duration: 300, easing: cubicOut }}
+          >
+            {#if activeFilter === 'all'}
+              <div class="space-y-12 sm:space-y-24 w-full flex flex-col items-center">
+                {#each ['genshin', 'hsr', 'zzz'] as game}
+                  {@const gameBanners = banners.filter(b => b.game_id === game)}
+                  {@const status = getGameStatus(game)}
+                    <div class="w-full space-y-6 sm:space-y-10 group/game">
+                      <div class="max-w-3xl mx-auto flex flex-col items-center mb-6 sm:mb-10 text-center">
+                        <h2 class="text-2xl sm:text-4xl font-black uppercase italic tracking-tighter mb-2 sm:mb-3" style="color: var(--c-text);">
+                            {$t(`game.${game}`)}
+                        </h2>
+                        <div class="h-[1px] w-32" style="background: linear-gradient(to right, transparent, var(--c-border-md), transparent);"></div>
                       </div>
-                    {:else if status?.status === 'error'}
-                      <div class="w-full max-w-4xl mx-auto rounded-2xl sm:rounded-[2rem] border border-red-500/15 bg-red-950/10 p-8 sm:p-12 text-center">
-                        <div class="bg-red-500/10 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4 border border-red-500/20">
-                          <svg class="w-6 h-6 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                          </svg>
+                      
+                      {#if status?.status === 'maintenance'}
+                        <div class="w-full max-w-4xl mx-auto rounded-2xl sm:rounded-[2rem] border border-amber-500/15 bg-amber-950/10 p-8 sm:p-12 text-center">
+                          <div class="bg-amber-500/10 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4 border border-amber-500/20">
+                            <svg class="w-6 h-6 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                          </div>
+                          <p class="text-amber-300/80 text-sm sm:text-base font-bold uppercase tracking-wider">{$t('status.maintenance')}</p>
                         </div>
-                        <p class="text-red-300/80 text-sm sm:text-base font-bold uppercase tracking-wider">{$t('status.error')}</p>
-                      </div>
+                      {:else if status?.status === 'error'}
+                        <div class="w-full max-w-4xl mx-auto rounded-2xl sm:rounded-[2rem] border border-red-500/15 bg-red-950/10 p-8 sm:p-12 text-center">
+                          <div class="bg-red-500/10 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4 border border-red-500/20">
+                            <svg class="w-6 h-6 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                            </svg>
+                          </div>
+                          <p class="text-red-300/80 text-sm sm:text-base font-bold uppercase tracking-wider">{$t('status.error')}</p>
+                        </div>
                     {:else if gameBanners.length > 0}
-                    <div class="flex flex-col items-center gap-5 sm:gap-10">
-                      {#each gameBanners as banner (banner.id)}
-                        <div class="w-full max-w-4xl hover-perspective">
-                          <BannerCard {banner} />
-                        </div>
-                      {/each}
-                    </div>
+                      <div class="flex flex-col items-center gap-5 sm:gap-10">
+                        {#each gameBanners as banner (banner.id)}
+                          <div class="w-full max-w-4xl hover-perspective">
+                            <BannerCard {banner} />
+                          </div>
+                        {/each}
+                      </div>
                     {:else}
                       <div class="w-full max-w-4xl mx-auto rounded-2xl sm:rounded-[2rem] border border-slate-800/15 bg-slate-900/10 p-8 sm:p-12 text-center">
                         <p class="text-slate-500 text-sm font-bold uppercase tracking-wider">{$t('empty.message')}</p>
                       </div>
                     {/if}
                   </div>
-              {/each}
-            </div>
-          {:else}
-            {@const status = getGameStatus(activeFilter)}
-            {#if status?.status === 'maintenance'}
-              <div class="w-full max-w-2xl mx-auto rounded-2xl sm:rounded-[2rem] border border-amber-500/15 bg-amber-950/10 p-10 sm:p-16 text-center">
-                <div class="bg-amber-500/10 w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-5 border border-amber-500/20">
-                  <svg class="w-7 h-7 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                </div>
-                <p class="text-amber-300/80 text-base sm:text-xl font-black italic uppercase tracking-tighter">{$t('status.maintenance')}</p>
-              </div>
-            {:else if status?.status === 'error'}
-              <div class="w-full max-w-2xl mx-auto rounded-2xl sm:rounded-[2rem] border border-red-500/15 bg-red-950/10 p-10 sm:p-16 text-center">
-                <div class="bg-red-500/10 w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-5 border border-red-500/20">
-                  <svg class="w-7 h-7 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                  </svg>
-                </div>
-                <p class="text-red-300/80 text-base sm:text-xl font-black italic uppercase tracking-tighter">{$t('status.error')}</p>
-              </div>
-            {:else if filteredBanners.length === 0}
-              <div class="w-full max-w-2xl mx-auto rounded-[2rem] border border-slate-800/20 bg-slate-900/10 p-16 text-center backdrop-blur-3xl">
-                <p class="text-slate-400 text-xl font-black italic uppercase tracking-tighter">{$t('empty.message')}</p>
-              </div>
-            {:else}
-              <div class="flex flex-col items-center gap-5 sm:gap-10 w-full">
-                {#each filteredBanners as banner (banner.id)}
-                  <div class="w-full max-w-4xl hover-perspective">
-                    <BannerCard {banner} />
-                  </div>
                 {/each}
               </div>
+            {:else}
+              {@const status = getGameStatus(activeFilter)}
+              {#if status?.status === 'maintenance'}
+                <div class="w-full max-w-2xl mx-auto rounded-2xl sm:rounded-[2rem] border border-amber-500/15 bg-amber-950/10 p-10 sm:p-16 text-center">
+                  <div class="bg-amber-500/10 w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-5 border border-amber-500/20">
+                    <svg class="w-7 h-7 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                  <p class="text-amber-300/80 text-base sm:text-xl font-black italic uppercase tracking-tighter">{$t('status.maintenance')}</p>
+                </div>
+              {:else if status?.status === 'error'}
+                <div class="w-full max-w-2xl mx-auto rounded-2xl sm:rounded-[2rem] border border-red-500/15 bg-red-950/10 p-10 sm:p-16 text-center">
+                  <div class="bg-red-500/10 w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-5 border border-red-500/20">
+                    <svg class="w-7 h-7 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                  </div>
+                  <p class="text-red-300/80 text-base sm:text-xl font-black italic uppercase tracking-tighter">{$t('status.error')}</p>
+                </div>
+              {:else if filteredBanners.length === 0}
+                <div class="w-full max-w-2xl mx-auto rounded-[2rem] border border-slate-800/20 bg-slate-900/10 p-16 text-center backdrop-blur-3xl">
+                  <p class="text-slate-400 text-xl font-black italic uppercase tracking-tighter">{$t('empty.message')}</p>
+                </div>
+              {:else}
+                <div class="flex flex-col items-center gap-5 sm:gap-10 w-full">
+                  {#each filteredBanners as banner (banner.id)}
+                    <div class="w-full max-w-4xl hover-perspective">
+                      <BannerCard {banner} />
+                    </div>
+                  {/each}
+                </div>
+              {/if}
+
+              <!-- History redirect (always shown in game detail) -->
+              <div class="w-full max-w-4xl flex justify-center mt-12 mb-10">
+                <button
+                  on:click={() => { currentView = 'history'; changeHistoryGame(activeFilter as any); }}
+                  class="group flex items-center gap-4 px-10 py-4 rounded-[2rem] border transition-all duration-300 backdrop-blur-xl bg-[var(--c-control)] border-[var(--c-border)] shadow-xl hover:shadow-indigo-500/10 active:scale-95"
+                >
+                   <span class="text-sm font-black uppercase tracking-[0.2em] text-[var(--c-text-muted)] group-hover:text-[var(--c-text)] group-hover:tracking-[0.4em] transition-all italic">{$t('nav.history')}</span>
+                   <svg class="w-5 h-5 text-[var(--c-text-muted)] group-hover:text-[var(--c-text)] transition-transform group-hover:translate-x-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
+                     <path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5-5 5M6 7l5 5-5 5" />
+                   </svg>
+                </button>
+              </div>
             {/if}
-          {/if}
+          </div>
+        {/key}
+      {/if}
+    {:else}
+      <!-- History View -->
+      <div class="flex flex-col items-center w-full min-h-[60vh]" in:fly={{ y: 20, duration: 400 }}>
+        <!-- Header for History -->
+        <div class="w-full max-w-4xl flex items-center justify-between mb-8 px-2">
+           <button
+             on:click={() => (currentView = 'live')}
+             class="group flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-[var(--c-text-muted)] hover:text-indigo-400 transition-colors"
+           >
+              <svg class="w-4 h-4 transition-transform group-hover:-translate-x-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3.5">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
+              </svg>
+              <span>{$t('nav.back')}</span>
+           </button>
+           
+           <h2 class="text-xl font-black uppercase italic tracking-tighter text-[var(--c-text-muted)] opacity-60">
+             {$t('nav.history')} - {$t(`nav.${historyGame}`)}
+           </h2>
         </div>
-      {/key}
+
+        {#if isVersionsLoading}
+          <div class="w-full max-w-4xl flex flex-col items-center gap-8">
+            <div class="h-10 w-full max-w-xs rounded-xl bg-white/5 animate-pulse"></div>
+            <BannerSkeleton game={historyGame} />
+          </div>
+        {:else}
+          <!-- Version Selector -->
+          <div class="w-full max-w-4xl mb-8 sm:mb-16">
+             <div class="flex flex-col sm:flex-row items-center justify-center gap-4">
+                <div class="relative w-full max-w-xs group">
+                  <select 
+                    value={selectedPhaseId} 
+                    on:change={(e) => selectPhase(e.currentTarget.value)}
+                    class="w-full appearance-none px-5 py-3 rounded-2xl border text-sm font-bold uppercase tracking-wider transition-all focus:outline-none focus:ring-2 bg-[var(--c-control)] border-[var(--c-border)] text-[var(--c-text)]"
+                    style="--tw-ring-color: #6366f144;"
+                  >
+                    {#if groupedHistoryVersions.length === 0}
+                      <option disabled selected>No hay versiones</option>
+                    {/if}
+                    {#each groupedHistoryVersions as group}
+                      <optgroup label={`Versión ${group.version}`}>
+                        {#each group.phases as phase}
+                          <option value={phase.phase_id}>
+                            Fase {phase.phase}
+                          </option>
+                        {/each}
+                      </optgroup>
+                    {/each}
+                  </select>
+                  <div class="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none opacity-40">
+                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </div>
+                </div>
+
+                {#if selectedPhaseId}
+                  {@const currentPhase = historyVersions.find(v => v.phase_id === selectedPhaseId)}
+                  {#if currentPhase}
+                    <div class="text-[10px] font-black uppercase tracking-[0.2em] text-[var(--c-text-muted)] opacity-60">
+                      {new Date(currentPhase.start_date).toLocaleDateString(undefined, { month: 'short', day: 'numeric'})} 
+                      &mdash; 
+                      {new Date(currentPhase.end_date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric'})}
+                    </div>
+                  {/if}
+                {/if}
+             </div>
+          </div>
+
+          <!-- History Content -->
+          <div class="w-full flex flex-col items-center gap-6 sm:gap-10">
+            {#if isHistoryLoading}
+               <div class="w-full max-w-4xl">
+                  <BannerSkeleton game={historyGame} />
+               </div>
+            {:else if historyBanners.length > 0}
+               {#each historyBanners as banner (banner.id)}
+                 <div class="w-full max-w-4xl hover-perspective" in:scale={{ duration: 400, start: 0.98 }}>
+                    <BannerCard {banner} isHistory={true} />
+                 </div>
+               {/each}
+            {:else}
+               <div class="w-full max-w-2xl text-center p-12 rounded-3xl border border-dashed border-[var(--c-border)]">
+                  <p class="text-[var(--c-text-muted)] font-bold uppercase tracking-widest italic">
+                    {$t('empty.message')}
+                  </p>
+               </div>
+            {/if}
+          </div>
+        {/if}
+      </div>
     {/if}
   </section>
 
